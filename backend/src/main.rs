@@ -494,6 +494,7 @@ async fn main() {
         deadlock_detector: Arc::new(ethos_protocol_backend::deadlock::DeadlockDetector::new()),
         notification_service: ethos_protocol_backend::notifications::create_service(),
         profiler_state: Arc::new(ethos_protocol_backend::profiler::ProfilerState::new()),
+        incident_state: Arc::new(ethos_protocol_backend::incidents::IncidentState::new()),
     };
 
     let notification_interval_secs = std::env::var("NOTIFICATION_SCHEDULER_INTERVAL_SECS")
