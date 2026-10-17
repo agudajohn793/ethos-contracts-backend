@@ -67,6 +67,7 @@ use ethos_protocol_backend::{
     event_sourcing::EventSourcingState,
     feature_flags::{evaluate_flag_handler, get_flag, list_flags, upsert_flag, FlagState},
     graphql::{build_schema, graphql_handler, graphql_playground},
+    health::health_handler,
     load_shedding::{admission_middleware, LoadMonitor, LoadShedder, SheddingConfig},
     message_queue::MessageQueueState,
     metrics::Metrics,
@@ -116,13 +117,6 @@ fn build_cors_layer() -> CorsLayer {
             Method::OPTIONS,
         ])
         .allow_headers(tower_http::cors::Any)
-}
-
-async fn health_handler() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "status": "ok",
-        "version": env!("CARGO_PKG_VERSION"),
-    }))
 }
 
 /// GET /api/encryption/keys — list all known encryption key versions (#101).

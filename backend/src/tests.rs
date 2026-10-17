@@ -307,8 +307,10 @@ async fn test_health_endpoint() {
         .await
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json["status"], "ok");
+    assert!(json["status"] == "ok" || json["status"] == "degraded");
     assert!(json["version"].is_string());
+    assert!(json["rpc"]["status"].is_string());
+    assert!(json["rpc"]["reachable"].is_boolean());
 }
 
 #[tokio::test]
