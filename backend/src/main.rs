@@ -2,8 +2,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::{
+    body::Body,
     extract::State,
-    http::{HeaderValue, Method, StatusCode},
+    http::{HeaderValue, Method, Request, StatusCode},
+    middleware::Next,
+    response::Response,
     routing::{delete, get, post, put},
     Json, Router,
 };
@@ -119,6 +122,28 @@ fn build_cors_layer() -> CorsLayer {
         .allow_headers(tower_http::cors::Any)
 }
 
+async fn profile_http_request(
+    State(profiler): State<Arc<ethos_protocol_backend::profiler::ProfilerState>>,
+    request: Request<Body>,
+    next: Next,
+) -> Response {
+    let method = request.method().as_str().to_string();
+    let path = request
+        .extensions()
+        .get::<axum::extract::MatchedPath>()
+        .map(|matched| matched.as_str().to_string())
+        .unwrap_or_else(|| "unmatched".to_string());
+    let operation = format!("{method} {path}");
+
+    ethos_protocol_backend::profiler::profile_operation(
+        &profiler,
+        &operation,
+        &["http"],
+        || async move { next.run(request).await },
+    )
+    .await
+}
+
 /// GET /api/encryption/keys — list all known encryption key versions (#101).
 async fn encryption_keys_handler(
     State(state): State<AppState>,
@@ -229,6 +254,26 @@ pub fn build_router(state: AppState) -> Router {
             post(routes::add_vault_to_tenant),
         )
         .route("/api/tenants/billing", get(routes::get_tenant_billing))
+        .route(
+            "/admin/profiler/samples",
+            get(ethos_protocol_backend::profiler::list_samples),
+        )
+        .route(
+            "/admin/profiler/flamegraph",
+            get(ethos_protocol_backend::profiler::get_flamegraph),
+        )
+        .route(
+            "/admin/profiler/baseline",
+            post(ethos_protocol_backend::profiler::set_baseline),
+        )
+        .route(
+            "/admin/profiler/regressions",
+            get(ethos_protocol_backend::profiler::get_regressions),
+        )
+        .route(
+            "/admin/profiler/overhead",
+            get(ethos_protocol_backend::profiler::get_overhead),
+        )
         // ── Graceful degradation routes ─────────────────────────────────────
         .route(
             "/admin/capabilities",
@@ -283,6 +328,10 @@ pub fn build_router(state: AppState) -> Router {
         .layer(axum::middleware::from_fn_with_state(
             Arc::new(build_rate_limiter()),
             enforce_rate_limit,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            state.profiler_state.clone(),
+            profile_http_request,
         ))
         .layer(build_cors_layer())
         .with_state(state)
@@ -444,6 +493,7 @@ async fn main() {
         query_cache: Arc::new(ethos_protocol_backend::query_cache::QueryCache::new()),
         deadlock_detector: Arc::new(ethos_protocol_backend::deadlock::DeadlockDetector::new()),
         notification_service: ethos_protocol_backend::notifications::create_service(),
+        profiler_state: Arc::new(ethos_protocol_backend::profiler::ProfilerState::new()),
     };
 
     let notification_interval_secs = std::env::var("NOTIFICATION_SCHEDULER_INTERVAL_SECS")

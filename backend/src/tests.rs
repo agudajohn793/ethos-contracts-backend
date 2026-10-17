@@ -97,6 +97,7 @@ fn test_state(db: Arc<Db>) -> AppState {
         deadlock_detector: Arc::new(ethos_protocol_backend::deadlock::DeadlockDetector::new()),
         incident_state: Arc::new(IncidentState::new()),
         notification_service: ethos_protocol_backend::notifications::create_service(),
+        profiler_state: Arc::new(ethos_protocol_backend::profiler::ProfilerState::new()),
     }
 }
 
@@ -384,6 +385,21 @@ async fn test_tenant_routes_are_mounted() {
     assert_eq!(vaults, vec!["vault-1"]);
 }
 
+#[tokio::test]
+async fn test_profiler_routes_record_http_samples() {
+    let app = test_app();
+    let _ = get_req(app.clone(), "/admin/profiler/samples").await;
+
+    let response = get_req(app, "/admin/profiler/samples").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let samples: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(!samples.as_array().unwrap().is_empty());
+    assert!(samples[0]["operation"].as_str().unwrap().starts_with("GET "));
+}
+
 // ── #962: Multi-node consensus health check tests ────────────────────────────
 
 #[tokio::test]
@@ -448,6 +464,7 @@ async fn test_consensus_health_detects_and_resolves_divergence() {
         deadlock_detector: Arc::new(ethos_protocol_backend::deadlock::DeadlockDetector::new()),
         incident_state: Arc::new(IncidentState::new()),
         notification_service: ethos_protocol_backend::notifications::create_service(),
+        profiler_state: Arc::new(ethos_protocol_backend::profiler::ProfilerState::new()),
     };
     db.migrate().unwrap();
 
