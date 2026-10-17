@@ -216,6 +216,19 @@ pub fn build_router(state: AppState) -> Router {
             "/admin/notifications/:notification_id/deliver-with-fallback",
             post(ethos_protocol_backend::notifications::deliver_with_fallback_handler),
         )
+        .route(
+            "/api/tenants",
+            post(routes::create_tenant),
+        )
+        .route(
+            "/api/tenants/:tenant_id/vaults",
+            get(routes::get_tenant_vaults),
+        )
+        .route(
+            "/api/tenants/:tenant_id/vaults/:vault_id",
+            post(routes::add_vault_to_tenant),
+        )
+        .route("/api/tenants/billing", get(routes::get_tenant_billing))
         // ── Graceful degradation routes ─────────────────────────────────────
         .route(
             "/admin/capabilities",

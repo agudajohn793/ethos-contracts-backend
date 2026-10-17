@@ -348,6 +348,42 @@ async fn test_notification_registration_route() {
     assert_eq!(json["token"], "device-token-1");
 }
 
+#[tokio::test]
+async fn test_tenant_routes_are_mounted() {
+    let app = test_app();
+    let response = post_json(
+        app.clone(),
+        "/api/tenants",
+        json!({
+            "name": "Tenant One",
+            "owner": "owner-1",
+        }),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let tenant: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let tenant_id = tenant["id"].as_str().unwrap();
+
+    let response = post_json(
+        app.clone(),
+        &format!("/api/tenants/{tenant_id}/vaults/vault-1"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let response = get_req(app, &format!("/api/tenants/{tenant_id}/vaults")).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let vaults: Vec<String> = serde_json::from_slice(&body).unwrap();
+    assert_eq!(vaults, vec!["vault-1"]);
+}
+
 // ── #962: Multi-node consensus health check tests ────────────────────────────
 
 #[tokio::test]
