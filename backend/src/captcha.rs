@@ -602,6 +602,7 @@ mod tests {
             flag_state,
             query_cache: Arc::new(QueryCache::new()),
             deadlock_detector: Arc::new(DeadlockDetector::new()),
+            notification_service: crate::notifications::create_service(),
         }
     }
 

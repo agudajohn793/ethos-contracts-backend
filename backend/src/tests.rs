@@ -96,6 +96,7 @@ fn test_state(db: Arc<Db>) -> AppState {
         query_cache: Arc::new(ethos_protocol_backend::query_cache::QueryCache::new()),
         deadlock_detector: Arc::new(ethos_protocol_backend::deadlock::DeadlockDetector::new()),
         incident_state: Arc::new(IncidentState::new()),
+        notification_service: ethos_protocol_backend::notifications::create_service(),
     }
 }
 
@@ -326,6 +327,27 @@ async fn test_ready_endpoint() {
     assert_eq!(json["database"], "connected");
 }
 
+#[tokio::test]
+async fn test_notification_registration_route() {
+    let response = post_json(
+        test_app(),
+        "/api/notifications/register",
+        json!({
+            "owner": "owner-1",
+            "token": "device-token-1",
+            "platform": "ios",
+        }),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["owner"], "owner-1");
+    assert_eq!(json["token"], "device-token-1");
+}
+
 // ── #962: Multi-node consensus health check tests ────────────────────────────
 
 #[tokio::test]
@@ -389,6 +411,7 @@ async fn test_consensus_health_detects_and_resolves_divergence() {
         query_cache: Arc::new(ethos_protocol_backend::query_cache::QueryCache::new()),
         deadlock_detector: Arc::new(ethos_protocol_backend::deadlock::DeadlockDetector::new()),
         incident_state: Arc::new(IncidentState::new()),
+        notification_service: ethos_protocol_backend::notifications::create_service(),
     };
     db.migrate().unwrap();
 

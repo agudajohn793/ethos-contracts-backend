@@ -190,6 +190,32 @@ pub fn build_router(state: AppState) -> Router {
         .route("/health/consensus", get(consensus_health_handler))
         .route("/ready", get(ready_handler))
         .route("/metrics", get(metrics_handler))
+        .route(
+            "/api/notifications/register",
+            post(ethos_protocol_backend::notifications::register_token)
+                .delete(ethos_protocol_backend::notifications::unregister_token),
+        )
+        .route(
+            "/api/notifications/preferences",
+            get(ethos_protocol_backend::notifications::get_preferences)
+                .put(ethos_protocol_backend::notifications::update_preferences),
+        )
+        .route(
+            "/api/notifications/delivery",
+            get(ethos_protocol_backend::notifications::get_delivery_log),
+        )
+        .route(
+            "/admin/notifications/schedule",
+            post(ethos_protocol_backend::notifications::schedule_notification),
+        )
+        .route(
+            "/admin/notifications/flush",
+            post(ethos_protocol_backend::notifications::flush_pending_handler),
+        )
+        .route(
+            "/admin/notifications/:notification_id/deliver-with-fallback",
+            post(ethos_protocol_backend::notifications::deliver_with_fallback_handler),
+        )
         // ── Graceful degradation routes ─────────────────────────────────────
         .route(
             "/admin/capabilities",
@@ -404,7 +430,18 @@ async fn main() {
         flag_state,
         query_cache: Arc::new(ethos_protocol_backend::query_cache::QueryCache::new()),
         deadlock_detector: Arc::new(ethos_protocol_backend::deadlock::DeadlockDetector::new()),
+        notification_service: ethos_protocol_backend::notifications::create_service(),
     };
+
+    let notification_interval_secs = std::env::var("NOTIFICATION_SCHEDULER_INTERVAL_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|seconds| *seconds > 0)
+        .unwrap_or(60);
+    ethos_protocol_backend::notifications::start_scheduler(
+        Arc::clone(&state.notification_service),
+        notification_interval_secs,
+    );
 
     // ── Dynamic ACL admin routes ─────────────────────────────────────────
     // NOTE: ACL functionality is pending implementation.
